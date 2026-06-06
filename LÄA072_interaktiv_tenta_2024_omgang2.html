@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LÄA072 – Interaktiv Tenta 2024 Omgång 2</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f2f5; color: #1a1a2e; }
+
+  header {
+    position: sticky; top: 0; z-index: 100;
+    background: #1a1a2e; color: white;
+    padding: 12px 24px;
+    display: flex; align-items: center; gap: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  }
+  header h1 { font-size: 1.1rem; font-weight: 700; white-space: nowrap; }
+  #score-display { font-size: 1rem; font-weight: 600; color: #7ee8a2; white-space: nowrap; }
+  #progress-bar-wrap { flex: 1; background: rgba(255,255,255,0.15); border-radius: 8px; height: 10px; min-width: 80px; }
+  #progress-bar { height: 10px; background: linear-gradient(90deg,#7ee8a2,#2ed573); border-radius: 8px; width: 0%; transition: width 0.4s; }
+
+  main { max-width: 820px; margin: 32px auto; padding: 0 16px 120px; }
+
+  .question-card {
+    background: white; border-radius: 14px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.07);
+    padding: 24px; margin-bottom: 24px;
+  }
+  .q-header { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 16px; }
+  .q-num {
+    background: #1a1a2e; color: white;
+    border-radius: 50%; width: 36px; height: 36px; min-width: 36px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 0.95rem;
+  }
+  .q-text { font-size: 1rem; line-height: 1.6; color: #1a1a2e; }
+  .q-prompt { font-weight: 700; margin-top: 10px; font-size: 0.95rem; color: #2d3436; }
+
+  .options { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
+  .opt-btn {
+    background: #f8f9fa; border: 2px solid #e0e0e0;
+    border-radius: 10px; padding: 12px 18px;
+    text-align: left; cursor: pointer; font-size: 0.95rem;
+    line-height: 1.5; color: #1a1a2e;
+    transition: background 0.15s, border-color 0.15s, transform 0.1s;
+  }
+  .opt-btn:hover:not(.answered) { background: #eef2ff; border-color: #7c83fd; transform: translateX(3px); }
+  .opt-btn.correct { background: #d4edda; border-color: #28a745; color: #155724; font-weight: 600; }
+  .opt-btn.wrong { background: #f8d7da; border-color: #dc3545; color: #721c24; text-decoration: line-through; }
+  .opt-btn.answered { cursor: default; }
+
+  #finish-btn {
+    display: none; position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
+    background: linear-gradient(135deg, #1a1a2e, #16213e);
+    color: white; border: none; border-radius: 30px;
+    padding: 16px 48px; font-size: 1.1rem; font-weight: 700;
+    cursor: pointer; box-shadow: 0 6px 24px rgba(0,0,0,0.3);
+    transition: transform 0.2s, box-shadow 0.2s;
+    z-index: 200;
+  }
+  #finish-btn:hover { transform: translateX(-50%) scale(1.04); box-shadow: 0 8px 30px rgba(0,0,0,0.4); }
+
+  #results {
+    display: none; background: white; border-radius: 14px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.12); padding: 36px;
+    margin-top: 32px; text-align: center;
+  }
+  #results h2 { font-size: 1.4rem; margin-bottom: 8px; color: #1a1a2e; }
+  #final-score { font-size: 3.5rem; font-weight: 800; color: #28a745; margin: 16px 0; }
+  #results p { color: #666; font-size: 1rem; margin-bottom: 20px; }
+  #wrong-list { text-align: left; margin-top: 20px; }
+  #wrong-list h3 { font-size: 1rem; color: #dc3545; margin-bottom: 10px; }
+  .wrong-item { background: #fff5f5; border-left: 4px solid #dc3545; padding: 10px 14px; margin-bottom: 8px; border-radius: 0 8px 8px 0; font-size: 0.9rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>LÄA072 · Tenta 2024 · Omgång 2</h1>
+<small class="author">Av Elliot Rowshan, mest Claude</small>
+  <span id="score-display">0 / 20</span>
+  <div id="progress-bar-wrap">
+    <div id="progress-bar"></div>
+  </div>
+</header>
+
+<main>
+  <div id="questions-container"></div>
+  <div id="results">
+    <h2>Resultat</h2>
+    <div id="final-score"></div>
+    <p id="percent-text"></p>
+    <div id="wrong-list"></div>
+  </div>
+</main>
+
+<button id="finish-btn" onclick="showResults()">Visa resultat</button>
+
+<script>
+const questions = [
+  {
+    num: 1,
+    text: "Du är läkare på akutmottagningen där du träffar en 38-årig kvinna som i en veckas tid haft domningar och stickningar i sina fötter. Hon söker nu på grund av tilltagande försämring av symtomen. Hon kan inte gå utan stöd och upplever även svaghet i båda händerna. I status noteras distal svaghet i nedre extremiteter och nedsatt kraft vid handkramning. Du får inte fram några reflexer, varken i patella eller i akilles.",
+    prompt: "Vilken diagnos är mest sannolik?",
+    options: [
+      "Klassisk ALS",
+      "Guillain-Barrés syndrom",
+      "Stroke",
+      "Myasthenia gravis",
+      "Multipel skleros"
+    ],
+    correct: 2
+  },
+  {
+    num: 2,
+    text: "Fortsättning på fråga 1.",
+    prompt: "Vilket analysresultat vid lumbalpunktion skulle stödja diagnosen?",
+    options: [
+      "Spektrofotometri visar förekomst av både oxyhemoglobin och bilirubin",
+      "Förhöjt proteinvärde",
+      "Kraftigt sänkt glukos",
+      "Monocyter > 50 x 10⁶ /L",
+      "Sänkt albuminkvot"
+    ],
+    correct: 2
+  },
+  {
+    num: 3,
+    text: "En 32-årig man var på forsränning med sina vänner, men de hade inte anlitat en guide och det fanns inte tillräckligt med hjälmar. Vid sista forsen föll han ur båten och slog huvudet mot en sten. Hans vänner drog upp honom i båten och märkte att han var något förvirrad, men efter några minuter återgick han till sitt normala tillstånd och de avslutade turen. Fem timmar senare blev han slö och hade nedsatt kraft på höger sida. Han fördes till akuten. Patienten har genomgått en skyndsam DT-hjärna.",
+    prompt: "Vilken diagnos är mest sannolik?",
+    options: [
+      "Parenkymblödning",
+      "Vänstersidigt epiduralhematom",
+      "Subaraknoidalblödning",
+      "Vänstersidigt kroniskt subduralhematom",
+      "Högersidigt epiduralhematom"
+    ],
+    correct: 2
+  },
+  {
+    num: 4,
+    text: "Fortsättning på fråga 3.",
+    prompt: "Vilket blodkärl är skadat och har orsakat blödningen?",
+    options: [
+      "Arteria cerebri media",
+      "Arteria cerebri anterior",
+      "Sinus sagittalis superior",
+      "Venae cerebri superiores",
+      "Arteria meningea media"
+    ],
+    correct: 5
+  },
+  {
+    num: 5,
+    text: "På vårdcentral träffar du Jennifer, en 21-årig kvinna som pluggar till ingenjör. Hon söker vårdcentralen på grund av svår trötthet och sömnattacker som hon upplevt de senaste sex månaderna. Hon beskriver en konstant och överväldigande känsla av trötthet under dagen, oavsett hur mycket hon sover på natten. Jennifer har svårt att hålla sig vaken under lektioner. Hon upplever plötsliga sömnattacker flera gånger om dagen, ofta utan förvarning. Rutinnervstatus är i övrigt normalt och labb-prover utan anmärkning. Du funderar på narkolepsi.",
+    prompt: "Vilket av följande är MINST korrekt vid narkolepsi?",
+    options: [
+      "En positiv HLA-typning (DQB1*06:02) stärker misstanken om narkolepsi",
+      "Sömnparalys, hypnagoga hallucinationer, förlust av muskeltonus vid emotionell stimuli är kardinalsymtom vid narkolepsi",
+      "Multipelt sömnlatenstest (MSLT) används för att utvärdera sömnlatens och förekomsten av REM-sömnepisoder för att stödja diagnosen narkolepsi",
+      "Centralstimulantia är symtomatisk behandling vid narkolepsi för att minska uttalad dagsömnighet",
+      "Lumbalpunktion med likvoranalys ingår inte i narkolepsiutredning"
+    ],
+    correct: 5
+  },
+  {
+    num: 6,
+    text: "Suki, 46 år, söker vårdcentralen på grund av pulserande huvudvärk. Hon har haft återkommande episoder med huvudvärk. I samband med huvudvärksanfall mår hon illa och har ljud- och ljuskänslighet. Paracetamol och NSAID utan tydlig effekt mot attackerna. I övrigt är status normalt. Du misstänker migrän och funderar på att skriva ut Sumatriptan.",
+    prompt: "Vilken av nedanstående sjukdomar är kontraindikation för Sumatriptanbehandling?",
+    options: [
+      "Inflammatorisk tarmsjukdom",
+      "Epilepsi",
+      "Koronarsjukdom",
+      "Hypotyreos",
+      "Osteoporos"
+    ],
+    correct: 3
+  },
+  {
+    num: 7,
+    text: "En tidigare väsentligen frisk 42-årig man söker vårdcentralen på grund av skakningar i händerna som har pågått under många år. Han uppger att skakningarna började gradvis och har blivit mer påtagliga med tiden. Patienten beskriver att skakningarna tenderar att bli värre när han försöker utföra finmotoriska uppgifter, såsom att skriva, hålla en kopp eller knäppa knappar. Skakningarna uppträder också när han sträcker ut händerna framför sig. Nu orsakar skakningarna mycket besvär socialt och i arbetslivet.",
+    prompt: "Vad är första behandlingsalternativet för att lindra symtomen?",
+    options: [
+      "Bensodiazepin",
+      "Betablockare",
+      "Levodopa",
+      "Gabapentin",
+      "Dopaminagonist"
+    ],
+    correct: 2
+  },
+  {
+    num: 8,
+    text: "Du arbetar som underläkare på en vårdcentral och träffar Amed, en 58-årig man, som kommer tillsammans med sin sambo. Sambon uttrycker oro över att Amed har förändrats markant under det senaste året. Sambon beskriver att han, som tidigare var mycket social och empatisk, nu har blivit avvikande i sitt beteende. Han har blivit mycket mer impulsiv och har börjat uppträda olämpligt i sociala situationer. Amed verkar också ha blivit mer likgiltig inför andras känslor och saknar insikt i sina egna beteendeförändringar. Han har också börjat uppvisa repetitiva beteenden. Hans när- och fjärrtidsminne verkar dock vara relativt intakt.",
+    prompt: "Vilken av dessa diagnoser inger detta primärt misstanke om?",
+    options: [
+      "Normaltryckshydrocefalus",
+      "Frontotemporal demens",
+      "Lewykroppsdemens",
+      "ALS",
+      "Parkinsons sjukdom"
+    ],
+    correct: 2
+  },
+  {
+    num: 9,
+    text: "Som underläkare på neurologimottagningen träffar du Rebecca, en 28-årig kvinna med epilepsi. Hon beskriver sina anfall som inleds med en plötslig, obehaglig känsla i magen som sedan stiger upp till bröstet eller halsen. Därefter upplever hon illamående och saknar sedan minnesbilder, men enligt hennes man uppträder en tom blick och hon får sedan kramper.",
+    prompt: "Vilket område är mest sannolikt engagerat i anfallets ursprung?",
+    options: [
+      "Occipitallob",
+      "Temporallob",
+      "Frontallob",
+      "Parietallob",
+      "Cerebellum"
+    ],
+    correct: 2
+  },
+  {
+    num: 10,
+    text: "Lennart, en 75-årig man, söker vård på grund av gradvis försämrad gång- och balansförmåga, urininkontinens och minnesproblem de senaste tre åren. Hans hustru har märkt att han blivit alltmer ostadig på fötterna och att han ofta behöver använda toaletten. De har också observerat att han har svårt att komma ihåg saker och har svårt att koncentrera sig. Du misstänker normaltryckshydrocephalus.",
+    prompt: "Vilka typiskt statusfynd förväntar du dig när du undersöker patienten?",
+    options: [
+      "Bredspårig och hasande gång, utåtroterade fötter, framåtfällning av bålen",
+      "Smalspårig gång med relativt god hastighet, ataxi och framåtfällning av bålen",
+      "Bredspårig gång, hypokinesi, ataxi och dysartri",
+      "Vilotremor, hypokinesi, dysfagi",
+      "Långsam gång med normal steglängd, postural tremor, vertikal blickpares"
+    ],
+    correct: 1
+  },
+  {
+    num: 11,
+    text: "Fortsättning på fråga 10.",
+    prompt: "Vilket av nedanstående är MINST korrekt vad gäller normaltryckshydrocefalus (NPH)?",
+    options: [
+      "Ventrikuloperitoneal shunt är förstahandsalternativet vid behandling av NPH",
+      "Radiologiska fynd inkluderar trånga konvexitetsfåror, ventrikulomegali och vidgade fissurae Sylvii, vilket är typiskt vid NPH",
+      "NPH uppträder hos äldre med en majoritet i åldersspannet 65–80 år",
+      "Vid lumbalpunktion ses oftast ett kraftigt förhöjt öppningstryck",
+      "Majoriteten av patienterna förbättras avseende gång- och balanssvårigheter efter shuntinläggning"
+    ],
+    correct: 4
+  },
+  {
+    num: 12,
+    text: "Du träffar en 76-årig man på strokeavdelningen som söker för plötsligt debuterande ostadig gång och ataxi på höger sida. MR-hjärna visar multipla infarkter i höger lillhjärna och en liten infarkt i laterala medulla oblongata höger.",
+    prompt: "Vilka av följande symtom skulle också ha kunnat orsakats av skadan?",
+    options: [
+      "Känselnedsättning mot temperatur och stick i höger kroppshalva",
+      "Yrsel, nystagmus och högersidig ptos samt mios",
+      "Ipsilateralt abducenspares och okulomotoriuspares",
+      "Vertikalt blickpares, ipsilateralt okulomotoriuspares",
+      "Känselnedsättning mot temperatur och stick i vänster ansiktshalva"
+    ],
+    correct: 2
+  },
+  {
+    num: 13,
+    text: "En 52-årig kvinna söker för dubbelseende och muskelsvaghet i armarna. Hon arbetar på lager och har de senaste veckorna känt sig trött så fort hon måste flytta tunga varor. Oftast är symtomen bättre på förmiddagen för att sedan försämras under dagen. Maken tycker också att hon ser trött ut på kvällarna och att hennes ögonlock hänger ner. I status noterar du lätt ptos bilateralt, samt en klar muskulär uttröttbarhet i armarna.",
+    prompt: "Vilket av nedanstående är FELAKTIGT om patientens tillstånd?",
+    options: [
+      "Överdosering av symtomatisk läkemedelsbehandling kan leda till muskelsvaghet, mios och ökat tårflöde",
+      "Det finns en hög korrelation mellan svårighetsgrad och antikroppskoncentration i serum",
+      "Ögonmusklerna angrips ofta tidigt i förloppet",
+      "DT eller MR av mediastinum utförs rutinmässigt för att påvisa eventuellt tymom",
+      "EMG visar dekrement vid repetitiv nervstimulering"
+    ],
+    correct: 2
+  },
+  {
+    num: 14,
+    text: "En 35-årig kvinna med tidigare depression och panikångest söker på grund av att hon på morgonen plötsligt förlorade styrkan i sitt högra ben. I status noteras normala reflexer och sensibilitet. Vid benlyft uppvisar hon förmågan att hålla emot trycket bra under några sekunder, men plötsligt släpper hon efter. Hon har svårt att böja på höger knä och knäet är helt utsträckt vid undersökningen. Du genomför ytterligare ett test genom att hålla din hand under hennes högerfot och sedan ber du henne lyfta vänster ben rakt upp – du känner då ett tryck mot handen. I övrigt är rutinnervstatus normalt. DT-hjärna utan avvikande fynd.",
+    prompt: "Vilken diagnos är mest sannolik?",
+    options: [
+      "Epilepsi",
+      "Stroke",
+      "Multipel skleros",
+      "Myopati",
+      "Funktionell svaghet"
+    ],
+    correct: 5
+  },
+  {
+    num: 15,
+    text: "Du jobbar som underläkare på akutmottagningen i Värnamo och träffar en patient som inkommer på grund av att han sedan fyra dagar tillbaka har haft svaghet i höger underben och en haltande gång. Symtomen uppkom när han var i mataffären och handlade. Vid undersökningen misstänks en skada på nervus fibularis (peroneusnerven).",
+    prompt: "Vilken beskrivning stämmer BÄST överens med skadelokalisation på nervus fibularis?",
+    options: [
+      "Oförmåga att plantarflektera, adducera och invertera foten",
+      "Nedsatt akillesreflex, svaghet i musculus glutaeus maximus",
+      "Svaghet i biceps femoris, nedsatt flexion av knäleden",
+      "Smärta och parestesier på utsidan av låret, utsida- och framsida underbenet",
+      "Oförmåga att dorsalflektera foten och tårna"
+    ],
+    correct: 5
+  },
+  {
+    num: 16,
+    text: "Du arbetar som kvällsjour på akutmottagningen när en 45-årig kvinna kommer in efter att ha fått ett slag mot huvudet i en bilolycka. Hon klagar på huvudvärk, illamående och har kräkts flera gånger. Vid undersökning noterar du att hennes medvetandegrad har försämrats sedan ankomsten, och hon verkar desorienterad. Du misstänker förhöjt intrakraniellt tryck.",
+    prompt: "Vilket av följande är INTE ett tecken på förhöjt intrakraniellt tryck?",
+    options: [
+      "Oregelbunden andning",
+      "Högt blodtryck",
+      "Hypotension",
+      "Bradykardi",
+      "Pupilldilatation"
+    ],
+    correct: 3
+  },
+  {
+    num: 17,
+    text: "Stella, en 61-årig kvinna med diabetes mellitus typ 2, tablettbehandlad hypertoni och hyperlipidemi har vaknat med dubbelseende på morgonen. Du noterar okulomotoriuspares vänster med bevarad pupillfunktion vid undersökningen.",
+    prompt: "Vilket av följande tillstånd är mest sannolikt orsaken till statusfynden?",
+    options: [
+      "Cancerväxt i epifarynx",
+      "Myasthenia gravis",
+      "Mikroangiopati till följd av nervinfarkt vid diabetes",
+      "Hjärnstamsinfarkt vid mesencefalon nivå",
+      "Bakre kommunikantaneurysm"
+    ],
+    correct: 3
+  },
+  {
+    num: 18,
+    text: "En 65-årig kvinna inkommer akut efter att för tre timmar sedan plötsligt ha insjuknat med rotatorisk yrsel och kraftigt illamående. Hon har kräkts flera gånger på akutmottagningen. Du fastställer konstant yrsel och spontannystagmus i akutrummet. Blodtryck 170/85. EKG visar regelbunden sinusrytm.",
+    prompt: "Vilket av nedanstående statusfynd talar starkast emot en skada i centrala nervsystemet?",
+    options: [
+      "Nedåtslående nystagmus",
+      "Sidoväxlande nystagmus",
+      "Ataxi och falltendens åt höger vid Rombergs test",
+      "Inställningsrörelse vid test of skew",
+      "Positivt impulstest"
+    ],
+    correct: 5
+  },
+  {
+    num: 19,
+    text: "Du arbetar på vårdcentral i Götene och träffar 60-åriga Thomas som är en tidigare väsentligen frisk man. Du tar en utförlig anamnes och statusundersökning och misstänker Myasthenia gravis och skriver remiss till neurolog.",
+    prompt: "Vilken av följande symtombilder är mest typisk vid denna diagnos?",
+    options: [
+      "Sluddrigt tal, asymmetrisk atrofi av tungan, fascikulationer av tungan",
+      "Diplopi, sluddrigt tal, muskelsvaghet som förvärras mot eftermiddagen",
+      "Diplopi, stegrade reflexer, balanssvårigheter",
+      "Nedsatt muskeltonus proximalt i nedre extremiteter, muskelatrofi, nedsatta reflexer",
+      "Balanssvårigheter, kognitiv nedsättning, vertikal blickpares"
+    ],
+    correct: 2
+  },
+  {
+    num: 20,
+    text: "",
+    prompt: "Vilken del av centrala nervsystemet kan du förvänta dig vara skadad vid en övre kvadrantanopsi åt vänster?",
+    options: [
+      "Vänster occipitallob",
+      "Höger temporallob",
+      "Höger parietallob",
+      "Vänster temporallob",
+      "N. opticus vänster"
+    ],
+    correct: 2
+  }
+];
+
+const TOTAL = questions.length;
+let userAnswers = {};
+let answeredCount = 0;
+let correctCount = 0;
+
+function buildQuestions() {
+  const container = document.getElementById('questions-container');
+  questions.forEach(q => {
+    const card = document.createElement('div');
+    card.className = 'question-card';
+    card.id = `card-${q.num}`;
+
+    const qtext = q.text ? `<p class="q-text">${q.text}</p>` : '';
+    const prompt = q.prompt ? `<p class="q-prompt">${q.prompt}</p>` : '';
+
+    const opts = q.options.map((opt, i) =>
+      `<button class="opt-btn" id="opt-${q.num}-${i+1}" onclick="answer(${q.num}, ${i+1})">${opt}</button>`
+    ).join('');
+
+    card.innerHTML = `
+      <div class="q-header">
+        <div class="q-num">${q.num}</div>
+        <div>${qtext}${prompt}</div>
+      </div>
+      <div class="options">${opts}</div>
+    `;
+    container.appendChild(card);
+  });
+}
+
+function answer(qNum, chosen) {
+  if (userAnswers[qNum] !== undefined) return;
+  userAnswers[qNum] = chosen;
+  answeredCount++;
+  const q = questions.find(q => q.num === qNum);
+  const isCorrect = chosen === q.correct;
+  if (isCorrect) correctCount++;
+
+  q.options.forEach((_, i) => {
+    const btn = document.getElementById(`opt-${qNum}-${i+1}`);
+    btn.classList.add('answered');
+    if (i + 1 === q.correct) btn.classList.add('correct');
+    else if (i + 1 === chosen) btn.classList.add('wrong');
+  });
+
+  updateScore();
+  if (answeredCount === TOTAL) {
+    document.getElementById('finish-btn').style.display = 'block';
+  }
+}
+
+function updateScore() {
+  document.getElementById('score-display').textContent = `${correctCount} / ${TOTAL}`;
+  const pct = (answeredCount / TOTAL) * 100;
+  document.getElementById('progress-bar').style.width = pct + '%';
+}
+
+function showResults() {
+  document.getElementById('finish-btn').style.display = 'none';
+  const resultsEl = document.getElementById('results');
+  resultsEl.style.display = 'block';
+  document.getElementById('final-score').textContent = `${correctCount}/${TOTAL}`;
+  const pct = Math.round((correctCount / TOTAL) * 100);
+  document.getElementById('percent-text').textContent = `${pct}% rätt`;
+
+  const wrongList = document.getElementById('wrong-list');
+  const wrongQs = questions.filter(q => userAnswers[q.num] !== q.correct);
+  if (wrongQs.length === 0) {
+    wrongList.innerHTML = '<p style="color:#28a745;font-weight:600;">Perfekt! Alla rätt!</p>';
+  } else {
+    const items = wrongQs.map(q => {
+      const yourAns = q.options[userAnswers[q.num] - 1];
+      const rightAns = q.options[q.correct - 1];
+      return `<div class="wrong-item"><strong>Fråga ${q.num}:</strong> Du svarade <em>"${yourAns}"</em> – rätt svar: <strong>"${rightAns}"</strong></div>`;
+    }).join('');
+    wrongList.innerHTML = `<h3>Fel svar (${wrongQs.length} st):</h3>${items}`;
+  }
+  resultsEl.scrollIntoView({ behavior: 'smooth' });
+}
+
+buildQuestions();
+</script>
+</body>
+</html>
